@@ -10,7 +10,11 @@ protocol LCAppModelDelegate {
 }
 
 class LCAppModel: ObservableObject, Hashable {
-    
+    public var shouldLaunchInRealIPhoneMode: Bool {
+        get {
+            return LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode")
+        }
+    }
     @Published var appInfo : LCAppInfo
     
     @Published var isAppRunning = false
@@ -197,7 +201,27 @@ class LCAppModel: ObservableObject, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(self))
     }
-    
+    func syncIPhoneMode(isMultitask: Bool) {
+        var finaliPhone = false
+        if isMultitask {
+            finaliPhone = false
+        } else {
+            if let deviceFamily = appInfo.infoPlist["UIDeviceFamily"] as? [Int] {
+                if deviceFamily.contains(1) && !deviceFamily.contains(2) {
+                    finaliPhone = true
+                } else if deviceFamily.contains(1) && deviceFamily.contains(2) {
+                    finaliPhone = false
+                } else {
+                    finaliPhone = LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode")
+                }
+            } else {
+                finaliPhone = LCUtils.appGroupUserDefault.bool(forKey: "LCRealIPhoneMode")
+            }
+        }
+        LCUtils.appGroupUserDefault.set(finaliPhone, forKey: "LCRealIPhoneMode")
+        UserDefaults.standard.set(!finaliPhone, forKey: "LCNativeFullscreen")
+        LCUtils.appGroupUserDefault.synchronize()
+    }
     // You should let LCAppModel.runApp to decide whether to run in multitask mode, but you may override the multitask parameter if necessary
     func runApp(multitask: Bool? = nil, containerFolderName : String? = nil, bundleIdOverride : String? = nil, urlStr : String? = nil, forceJIT: Bool? = nil) async throws{
         if isAppRunning {
@@ -220,6 +244,9 @@ class LCAppModel: ObservableObject, Hashable {
             uiSelectedContainer = uiContainers.first { $0.folderName == containerFolderName } ?? uiSelectedContainer
         }
         let currentDataFolder = containerFolderName ?? uiSelectedContainer?.folderName
+        
+        let finalMultitask = multitask ?? shouldLaunchInMultitaskMode
+        syncIPhoneMode(isMultitask: finalMultitask)
         
         let multitask = multitask ?? shouldLaunchInMultitaskMode;
         
