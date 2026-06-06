@@ -23,6 +23,14 @@ if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] &&
     !isSideStore) { 
     swizzle(UIWindow.class, @selector(setFrame:), @selector(hook_setFrame:));
     swizzle(UIScreen.class, @selector(bounds), @selector(hook_UIScreen_bounds));
+            [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillEnterForegroundNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification * _Nonnull note) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.02 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [LCRealIPhoneModeHelper repositionAllWindows];
+            });
+        }];
 }
     if(!NSUserDefaults.lcGuestAppId) return;
     swizzle(UIApplication.class, @selector(_applicationOpenURLAction:payload:origin:), @selector(hook__applicationOpenURLAction:payload:origin:));
