@@ -245,6 +245,10 @@ uint32_t dyld_get_sdk_version(const struct mach_header* mh);
     return newIcon;
 }
 
+- (NSDictionary *)infoPlist {
+    return _infoPlist;
+}
+
 - (NSDictionary *)generateWebClipConfigWithContainerId:(NSString*)containerId iconStyle:(GeneratedIconStyle)style{
     NSString* appClipUrl;
     if(containerId) {
