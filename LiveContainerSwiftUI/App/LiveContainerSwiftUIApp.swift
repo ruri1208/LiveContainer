@@ -9,7 +9,7 @@ import SwiftUI
 @main
 struct LiveContainerSwiftUIApp : SwiftUI.App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+    @Environment(\.scenePhase) var scenePhase
     @State var appDataFolderNames: [String]
     @State var tweakFolderNames: [String]
     
@@ -100,7 +100,17 @@ struct LiveContainerSwiftUIApp : SwiftUI.App {
                 .environmentObject(DataManager.shared.model)
                 .environmentObject(LCAppSortManager.shared)
         }
-        
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                if let lastPath = UserDefaults.standard.string(forKey: "selected") {
+                    let allApps = DataManager.shared.model.apps + DataManager.shared.model.hiddenApps
+                    if let runningApp = allApps.first(where: { $0.appInfo.relativeBundlePath == lastPath }) {
+                        runningApp.syncIPhoneMode(isMultitask: runningApp.shouldLaunchInMultitaskMode)
+                    }
+                }
+            }
+        }
+
         if UIApplication.shared.supportsMultipleScenes, #available(iOS 16.1, *) {
             WindowGroup(id: "appView", for: String.self) { $id in
                 if let id {
