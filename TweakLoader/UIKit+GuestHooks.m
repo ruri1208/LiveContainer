@@ -5,12 +5,25 @@
 #import <LocalAuthentication/LocalAuthentication.h>
 #import "Localization.h"
 
+//iPhone mode 9:16 hook
+@interface LCRealIPhoneModeHelper : NSObject
++ (void)repositionAllWindows;
+@end
+
 UIInterfaceOrientation LCOrientationLock = UIInterfaceOrientationUnknown;
 NSMutableArray<NSString*>* LCSupportedUrlSchemes = nil;
 BOOL launchURLProcessed = NO;
 
 __attribute__((constructor))
 static void UIKitGuestHooksInit() {
+    NSString *livecontainerappid = NSUserDefaults.lcGuestAppId;
+    BOOL isSideStore = [livecontainerappid.lowercaseString containsString:@"sidestore"];
+    
+if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] && 
+    !isSideStore) { 
+    swizzle(UIWindow.class, @selector(setFrame:), @selector(hook_setFrame:));
+    swizzle(UIScreen.class, @selector(bounds), @selector(hook_UIScreen_bounds));
+}
     if(!NSUserDefaults.lcGuestAppId) return;
     swizzle(UIApplication.class, @selector(_applicationOpenURLAction:payload:origin:), @selector(hook__applicationOpenURLAction:payload:origin:));
     swizzle(UIApplication.class, @selector(_connectUISceneFromFBSScene:transitionContext:), @selector(hook__connectUISceneFromFBSScene:transitionContext:));
@@ -40,6 +53,15 @@ static void UIKitGuestHooksInit() {
         }
 
     }
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillEnterForegroundNotification 
+                                                      object:nil 
+                                                       queue:[NSOperationQueue mainQueue] 
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [NSClassFromString(@"LCRealIPhoneModeHelper") repositionAllWindows];
+            NSLog(@"[LC] Tweak: Detected foreground, repositioning windows.");
+        });
+    }];
 }
 
 NSString* findDefaultContainerWithBundleId(NSString* bundleId) {
@@ -704,6 +726,76 @@ BOOL canAppOpenItself(NSURL* url) {
 
 @end
 
+//iPhone mode 9:16 hook
+@implementation UIScreen (LiveContainerHook)
+- (CGRect)hook_UIScreen_bounds {
+    NSString *appId = NSUserDefaults.lcGuestAppId;
+    BOOL isSideStore = [appId.lowercaseString containsString:@"sidestore"];
+   
+    if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] && !isSideStore
+) {
+        CGRect nativeBounds = [self hook_UIScreen_bounds];
+        CGFloat screenH = nativeBounds.size.height;
+        CGFloat screenW = nativeBounds.size.width;
+        CGFloat targetW = MIN(screenW, screenH * (9.0 / 16.0));
+        return CGRectMake(0, 0, targetW, screenH);
+    }
+     
+    CGRect nativeBounds = [self hook_UIScreen_bounds];
+        CGFloat screenH = nativeBounds.size.height;
+        CGFloat targetW = nativeBounds.size.width; 
+        return CGRectMake(0, 0, targetW, screenH);
+}
+@end
+
+
+
+
+@implementation LCRealIPhoneModeHelper
+//iPhone mode 9:16 hook
++ (void)repositionAllWindows {
+    //if (![NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"]) return;
+    
+    UIWindowScene *scene = nil;
+    for (UIWindowScene *s in UIApplication.sharedApplication.connectedScenes) {
+        if ([s isKindOfClass:UIWindowScene.class]) {
+            scene = s;
+            break;
+        }
+    }
+    if (!scene) return;
+    
+    CGRect realBounds = scene.coordinateSpace.bounds;
+    CGFloat realH = realBounds.size.height;
+    CGFloat realW = realBounds.size.width;
+  
+NSString *lcappId = NSUserDefaults.lcGuestAppId;
+BOOL isSideStore = [lcappId.lowercaseString containsString:@"sidestore"];  
+BOOL isReal = [NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"];
+
+CGFloat targetW, offsetX;
+if (isReal && !isSideStore) {
+
+        targetW = MIN(realH * (9.0/16.0), realW);
+        offsetX = (realW - targetW) / 2.0;
+   
+    } else {
+        targetW = realW;
+        offsetX = 0;
+    }
+    CGRect targetFrame = CGRectMake(offsetX, 0, targetW, realH);
+    
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    for (UIWindow *window in scene.windows) {
+        window.layer.frame = targetFrame;
+    }
+    [CATransaction commit];
+}
+
+@end
+
+//iPhone Mode 9:16 hook(black background)
 @implementation UIWindow(hook)
 - (void)hook_setAutorotates:(BOOL)autorotates forceUpdateInterfaceOrientation:(BOOL)force {
     [self hook_setAutorotates:YES forceUpdateInterfaceOrientation:YES];
@@ -711,8 +803,51 @@ BOOL canAppOpenItself(NSURL* url) {
 
 - (void)hook_makeKeyAndVisible {
     [self updateWindowScene];
+    NSString *appid = NSUserDefaults.lcGuestAppId;
+    BOOL isSideStore = [appid.lowercaseString containsString:@"sidestore"];
+    BOOL isMainAppWindow = (self.windowLevel == UIWindowLevelNormal);
+    if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] && !isSideStore && isMainAppWindow) {
+        self.backgroundColor = [UIColor blackColor];
+    }
     [self hook_makeKeyAndVisible];
 }
+
+
+//iPhone mode 9:16 hook
+- (void)hook_setFrame:(CGRect)frame {
+    NSString *lcappid = NSUserDefaults.lcGuestAppId;
+    BOOL isSideStore = [lcappid.lowercaseString containsString:@"sidestore"];
+    BOOL isMainAppWindow = (self.windowLevel == UIWindowLevelNormal);
+    if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] && !isSideStore && isMainAppWindow) {
+        
+        UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
+        CGRect screenBounds = scene ? scene.coordinateSpace.bounds : frame;
+        
+        CGFloat realH = screenBounds.size.height;
+        CGFloat realW = screenBounds.size.width;
+        if (realH == 0 || realW == 0) {
+            [self hook_setFrame:frame];
+            return;
+        }
+        
+        CGFloat targetW = MIN(realW, realH * (9.0 / 16.0));
+        CGFloat offsetX = (realW - targetW) / 2.0;
+        
+        [self hook_setFrame:CGRectMake(offsetX, 0, targetW, realH)];
+    } else {
+        UIWindowScene *scene = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
+        CGRect screenBounds = scene ? scene.coordinateSpace.bounds : frame;
+        CGFloat realH = screenBounds.size.height;
+        CGFloat realW = screenBounds.size.width;
+        if (realH == 0 || realW == 0) {
+            [self hook_setFrame:frame];
+            return;
+        }
+        [self hook_setFrame:CGRectMake(0, 0, realW, realH)];
+        //frame];
+    }
+}
+
 - (void)hook_makeKeyWindow {
     [self updateWindowScene];
     [self hook_makeKeyWindow];
