@@ -53,15 +53,7 @@ if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCRealIPhoneMode"] &&
         }
 
     }
-        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationWillEnterForegroundNotification 
-                                                      object:nil 
-                                                       queue:[NSOperationQueue mainQueue] 
-                                                  usingBlock:^(NSNotification * _Nonnull note) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [NSClassFromString(@"LCRealIPhoneModeHelper") repositionAllWindows];
-            NSLog(@"[LC] Tweak: Detected foreground, repositioning windows.");
-        });
-    }];
+        
 }
 
 NSString* findDefaultContainerWithBundleId(NSString* bundleId) {
