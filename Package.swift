@@ -8,7 +8,6 @@ let package = Package(
         .iOS(.v15)
     ],
     products: [
- 
         .library(
             name: "LiveContainerKit",
             targets: ["LiveContainerUI", "LCBootstrap"]
@@ -16,6 +15,7 @@ let package = Package(
     ],
     dependencies: [
         
+        .package(url: "https://github.com/krzyzanowskim/OpenSSL.git", from: "3.1.5000")
     ],
     targets: [
         
@@ -29,19 +29,14 @@ let package = Package(
             ],
             publicHeadersPath: "." 
         ),
-        
-        
-        .binaryTarget(
-            name: "OpenSSL",
-            path: "OpenSSL/OpenSSL.xcframework" 
-        ),
 
         
         .target(
             name: "LCBootstrap",
             dependencies: [
                 "litehook",
-                "OpenSSL"   
+                
+                .product(name: "OpenSSL", package: "OpenSSL")
             ],
             path: "LiveContainer",
             exclude: [
@@ -60,7 +55,7 @@ let package = Package(
             ]
         ),
 
-        
+
         .target(
             name: "LiveContainerUI",
             dependencies: ["LCBootstrap"],
